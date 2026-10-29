@@ -1,7 +1,7 @@
 {
-  "name": "1 из 8 миллиардов — мобильная версия",
+  "name": "1 из 8 миллиардов — мобильная адаптация",
   "short_name": "1 из 8 млрд",
-  "description": "Проживи одну случайную жизнь среди 8 миллиардов. Симулятор судьбы на реальной статистике.",
+  "description": "Мобильная адаптация оригинала 1in8b.life — патчи для телефона, оригинал внутри",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -9,7 +9,7 @@
   "orientation": "portrait-primary",
   "background_color": "#FFF8EE",
   "theme_color": "#E85D3F",
-  "categories": ["games", "education"],
+  "categories": ["games"],
   "lang": "ru",
   "icons": [
     {
@@ -24,21 +24,5 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
-  ],
-  "shortcuts": [
-    {
-      "name": "Родиться случайно",
-      "url": "./index.html?birth=random",
-      "description": "Начать новую случайную жизнь"
-    },
-    {
-      "name": "Архив",
-      "url": "./index.html?screen=archive",
-      "description": "Открыть архив прожитых жизней"
-    }
-  ],
-  "handle_links": "preferred",
-  "launch_handler": {
-    "client_mode": "auto"
-  }
+  ]
 }
