@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      checks: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -21,9 +24,7 @@ jobs:
       - name: Generate project
         run: |
           set -e
-          mkdir -p app/src/main/java/dev/qretexa/twa1in8b
-          mkdir -p app/src/main/assets
-          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/java/dev/qretexa/twa1in8b app/src/main/assets app/src/main/res/values
           cp -r index.html css js manifest.json sw.js app/src/main/assets/ 2>/dev/null || true
           cat > settings.gradle <<'G'
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
@@ -32,70 +33,50 @@ jobs:
           G
           cat > app/build.gradle <<'G'
           plugins { id 'com.android.application' version '8.5.2' }
-          android {
-            namespace 'dev.qretexa.twa1in8b'
-            compileSdk 34
-            defaultConfig { applicationId "dev.qretexa.twa1in8b"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }
-            buildTypes { release { minifyEnabled false }; debug { debuggable true } }
-            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-          }
-          dependencies {
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.11.0'
-            implementation 'androidx.webkit:webkit:1.9.0'
-          }
+          android { namespace 'dev.qretexa.twa1in8b'; compileSdk 34; defaultConfig { applicationId "dev.qretexa.twa1in8b"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }; buildTypes { release { minifyEnabled false }; debug { debuggable true } }; compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }
+          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1'; implementation 'com.google.android.material:material:1.11.0'; implementation 'androidx.webkit:webkit:1.9.0' }
           G
           cat > app/src/main/AndroidManifest.xml <<'X'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-permission android:name="android.permission.INTERNET"/>
-            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+            <uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
             <application android:allowBackup="true" android:label="1 из 8 млрд" android:usesCleartextTraffic="true" android:hardwareAccelerated="true">
-              <activity android:name=".MainActivity" android:exported="true">
-                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
-              </activity>
+              <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
             </application>
           </manifest>
           X
           cat > app/src/main/java/dev/qretexa/twa1in8b/MainActivity.java <<'J'
-          package dev.qretexa.twa1in8b;
-          import android.os.Bundle; import android.webkit.WebView; import android.webkit.WebViewClient; import android.webkit.WebSettings; import androidx.appcompat.app.AppCompatActivity;
-          public class MainActivity extends AppCompatActivity {
-            private WebView wv;
-            @Override protected void onCreate(Bundle b){ super.onCreate(b); wv=new WebView(this); wv.getSettings().setJavaScriptEnabled(true); wv.getSettings().setDomStorageEnabled(true); wv.getSettings().setAllowFileAccess(true); wv.getSettings().setAllowContentAccess(true); wv.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT); wv.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); wv.setWebViewClient(new WebViewClient()); setContentView(wv); wv.loadUrl("file:///android_asset/index.html"); }
-            @Override public void onBackPressed(){ if(wv.canGoBack()) wv.goBack(); else super.onBackPressed(); }
-          }
+          package dev.qretexa.twa1in8b; import android.os.Bundle; import android.webkit.WebView; import android.webkit.WebViewClient; import android.webkit.WebSettings; import androidx.appcompat.app.AppCompatActivity;
+          public class MainActivity extends AppCompatActivity { private WebView wv; @Override protected void onCreate(Bundle b){ super.onCreate(b); wv=new WebView(this); wv.getSettings().setJavaScriptEnabled(true); wv.getSettings().setDomStorageEnabled(true); wv.getSettings().setAllowFileAccess(true); wv.getSettings().setAllowContentAccess(true); wv.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT); wv.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); wv.setWebViewClient(new WebViewClient()); setContentView(wv); wv.loadUrl("file:///android_asset/index.html"); } @Override public void onBackPressed(){ if(wv.canGoBack()) wv.goBack(); else super.onBackPressed(); } }
           J
           cat > app/src/main/res/values/themes.xml <<'X'
           <resources><style name="Theme.App" parent="android:style/Theme.NoTitleBar"/></resources>
           X
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          ls -R app | head -n 100
 
       - name: Accept licenses
-        run: yes | sdkmanager --licenses 2>&1 | head -n 20 || true
+        run: yes | sdkmanager --licenses 2>&1 | head -n 5 || true
 
       - name: Build APK
         id: build
         run: |
           set -o pipefail
-          gradle assembleDebug --stacktrace 2>&1 | tee /tmp/build.log; echo "EXIT=${PIPESTATUS[0]}" > /tmp/exitcode
-          EXIT=$(cat /tmp/exitcode | cut -d= -f2)
-          tail -n 300 /tmp/build.log
-          if [ "$EXIT" != "0" ]; then echo "BUILD_FAILED" > /tmp/failed; exit $EXIT; fi
+          gradle assembleDebug --stacktrace 2>&1 | tee /tmp/build.log
+          echo "EXIT=${PIPESTATUS[0]}" > /tmp/exit
+          cat /tmp/build.log
+          EXIT=$(grep EXIT /tmp/exit | cut -d= -f2)
+          if [ "$EXIT" != "0" ]; then echo "::error::Gradle failed with $EXIT"; exit $EXIT; fi
           ls -lh app/build/outputs/apk/debug/*.apk
 
-      - name: Publish log to repo on failure
+      - name: Comment log on failure
         if: failure()
         run: |
-          git config user.name "ci-bot"
-          git config user.email "ci@bot.local"
-          # save log as artifact in repo (branch)
-          cp /tmp/build.log ./build-failure.log || echo "no log" > ./build-failure.log
-          tail -n 300 /tmp/build.log > ./build-failure-tail.txt || true
-          git add build-failure.log build-failure-tail.txt || true
-          git commit -m "ci: push build failure log for debugging" || true
-          git push origin HEAD:${{ github.ref_name }} || true
+          LOG=$(tail -n 120 /tmp/build.log | head -c 60000)
+          # escape for JSON
+          BODY=$(printf "Build failed:\n\`\`\`\n%s\n\`\`\`" "$LOG")
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -f body="$BODY" || true
+          # also create check annotation via echo
+          echo "$LOG"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
