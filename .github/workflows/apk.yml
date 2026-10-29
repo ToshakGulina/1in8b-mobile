@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -17,7 +19,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
-
       - name: Generate project
         run: |
           mkdir -p app/src/main/java/dev/qretexa/twa1in8b app/src/main/assets app/src/main/res/values
@@ -29,18 +30,8 @@ jobs:
           G
           cat > app/build.gradle <<'G'
           plugins { id 'com.android.application' version '8.5.2' }
-          android {
-            namespace 'dev.qretexa.twa1in8b'
-            compileSdk 34
-            defaultConfig { applicationId "dev.qretexa.twa1in8b"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }
-            buildTypes { release { minifyEnabled false }; debug { debuggable true } }
-            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-          }
-          dependencies {
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.11.0'
-            implementation 'androidx.webkit:webkit:1.9.0'
-          }
+          android { namespace 'dev.qretexa.twa1in8b'; compileSdk 34; defaultConfig { applicationId "dev.qretexa.twa1in8b"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }; buildTypes { release { minifyEnabled false }; debug { debuggable true } }; compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }
+          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1'; implementation 'com.google.android.material:material:1.11.0'; implementation 'androidx.webkit:webkit:1.9.0' }
           G
           cat > app/src/main/AndroidManifest.xml <<'X'
           <?xml version="1.0" encoding="utf-8"?>
@@ -59,41 +50,18 @@ jobs:
           <resources><style name="Theme.App" parent="android:style/Theme.NoTitleBar"/></resources>
           X
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          ls -R app | head -n 80
-
       - name: Accept licenses
         run: yes | sdkmanager --licenses 2>&1 | head -n 5 || true
-
       - name: Build APK
-        id: build
-        continue-on-error: true
-        run: |
-          gradle assembleDebug --stacktrace 2>&1 | tee /tmp/build.log
-          echo "EXIT=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
-          cat /tmp/build.log
-          ls -lh app/build/outputs/apk/debug/ || true
-          # also save truncated for comment
-          head -n 150 /tmp/build.log > /tmp/head.log
-          tail -n 150 /tmp/build.log > /tmp/tail.log
-          grep -i -E "FAILED|error|exception|Could not" /tmp/build.log | head -n 100 > /tmp/grep.log || true
-
-      - name: Post log to commit comment
-        if: always()
-        run: |
-          echo "Build step outcome: ${{ steps.build.outcome }}"
-          HEAD_LOG=$(cat /tmp/head.log 2>/dev/null | tr -cd '\11\12\15\40-\176' | head -c 5000 || echo "no head")
-          GREP_LOG=$(cat /tmp/grep.log 2>/dev/null | tr -cd '\11\12\15\40-\176' | head -c 5000 || echo "no grep")
-          TAIL_LOG=$(cat /tmp/tail.log 2>/dev/null | tr -cd '\11\12\15\40-\176' | head -c 5000 || echo "no tail")
-          BODY="**Build ${{ steps.build.outcome }}** head:\n\`\`\`\n$HEAD_LOG\n\`\`\`\ngrep:\n\`\`\`\n$GREP_LOG\n\`\`\`\ntail:\n\`\`\`\n$TAIL_LOG\n\`\`\`"
-          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -f body="$BODY" || true
-          # fail job if build failed
-          if [ "${{ steps.build.outcome }}" != "success" ]; then exit 1; fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+        run: gradle assembleDebug --stacktrace && ls -lh app/build/outputs/apk/debug/*.apk
       - uses: actions/upload-artifact@v4
-        if: success()
         with:
           name: 1in8b-mobile-apk
           path: app/build/outputs/apk/debug/*.apk
-
+      - name: Create Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: "APK build ${{ github.run_number }}"
+          files: app/build/outputs/apk/debug/*.apk
+          generate_release_notes: true
