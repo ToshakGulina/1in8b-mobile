@@ -35,10 +35,7 @@ jobs:
           android {
             namespace 'dev.qretexa.twa1in8b'
             compileSdk 34
-            defaultConfig {
-              applicationId "dev.qretexa.twa1in8b"
-              minSdk 24; targetSdk 34; versionCode 1; versionName "1.0"
-            }
+            defaultConfig { applicationId "dev.qretexa.twa1in8b"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }
             buildTypes { release { minifyEnabled false }; debug { debuggable true } }
             compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
           }
@@ -62,48 +59,50 @@ jobs:
           X
           cat > app/src/main/java/dev/qretexa/twa1in8b/MainActivity.java <<'J'
           package dev.qretexa.twa1in8b;
-          import android.os.Bundle;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.webkit.WebSettings;
-          import androidx.appcompat.app.AppCompatActivity;
+          import android.os.Bundle; import android.webkit.WebView; import android.webkit.WebViewClient; import android.webkit.WebSettings; import androidx.appcompat.app.AppCompatActivity;
           public class MainActivity extends AppCompatActivity {
             private WebView wv;
-            @Override protected void onCreate(Bundle savedInstanceState) {
-              super.onCreate(savedInstanceState);
-              wv = new WebView(this);
-              wv.getSettings().setJavaScriptEnabled(true);
-              wv.getSettings().setDomStorageEnabled(true);
-              wv.getSettings().setAllowFileAccess(true);
-              wv.getSettings().setAllowContentAccess(true);
-              wv.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
-              wv.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-              wv.setWebViewClient(new WebViewClient());
-              setContentView(wv);
-              wv.loadUrl("file:///android_asset/index.html");
-            }
-            @Override public void onBackPressed() { if (wv.canGoBack()) wv.goBack(); else super.onBackPressed(); }
+            @Override protected void onCreate(Bundle b){ super.onCreate(b); wv=new WebView(this); wv.getSettings().setJavaScriptEnabled(true); wv.getSettings().setDomStorageEnabled(true); wv.getSettings().setAllowFileAccess(true); wv.getSettings().setAllowContentAccess(true); wv.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT); wv.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); wv.setWebViewClient(new WebViewClient()); setContentView(wv); wv.loadUrl("file:///android_asset/index.html"); }
+            @Override public void onBackPressed(){ if(wv.canGoBack()) wv.goBack(); else super.onBackPressed(); }
           }
           J
           cat > app/src/main/res/values/themes.xml <<'X'
           <resources><style name="Theme.App" parent="android:style/Theme.NoTitleBar"/></resources>
           X
-          ls -R app
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          cat local.properties
+          ls -R app | head -n 100
 
-      - name: Build APK (with log capture)
+      - name: Accept licenses + show SDK
+        run: |
+          yes | sdkmanager --licenses 2>&1 | head -n 20 || true
+          ls $ANDROID_HOME/platforms | head
+          ls $ANDROID_HOME/build-tools | head
+
+      - name: Build APK
         run: |
           set -o pipefail
-          gradle assembleDebug --stacktrace 2>&1 | tee /tmp/build.log
-          ls -lh app/build/outputs/apk/debug/ || true
+          gradle assembleDebug --stacktrace 2>&1 | tee /tmp/build.log; EXIT=${PIPESTATUS[0]}
+          echo "EXIT=$EXIT"
+          tail -n 200 /tmp/build.log
+          if [ $EXIT -ne 0 ]; then
+            echo "=== BUILD FAILED ==="
+            # create gist via API for us to read (allowed host api.github.com)
+            # use gh to create gist
+            gh gist create /tmp/build.log --public --desc "build log $GITHUB_RUN_ID" 2>&1 || true
+            exit $EXIT
+          fi
+          ls -lh app/build/outputs/apk/debug/*.apk
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload APK
+      - uses: actions/upload-artifact@v4
         if: success()
-        uses: actions/upload-artifact@v4
         with:
           name: 1in8b-mobile-apk
           path: app/build/outputs/apk/debug/*.apk
 
-      - name: Upload build log on failure
+      - name: Upload log artifact
         if: failure()
         uses: actions/upload-artifact@v4
         with:
