@@ -3,13 +3,6 @@ name: Build APK
 on:
   push:
     branches: [ "arena/63846101-1in8b-mobile", "main" ]
-    paths:
-      - "index.html"
-      - "css/**"
-      - "js/**"
-      - "manifest.json"
-      - "sw.js"
-      - ".github/workflows/apk.yml"
   workflow_dispatch:
 
 jobs:
@@ -21,29 +14,141 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Clone WebView template
+
+      - name: Generate minimal WebView project
         run: |
-          git clone --depth 1 https://github.com/ykann88/Html-Css-Js-Web-View-Apk-Template.git template
-          ls template/app/src/main/
-      - name: Copy app assets
-        run: |
-          mkdir -p template/app/src/main/assets
-          cp -r index.html css js manifest.json sw.js template/app/src/main/assets/ || true
-          # also copy nested
-          ls -R template/app/src/main/assets | head -n 50
-          # Patch package id
-          grep -r "applicationId" template/app --include="*.gradle*" || true
-          find template/app -name "*.gradle*" -exec sed -i 's/com.example.webview/dev.qretexa.twa1in8b/g' {} \; || true
-          find template -name "strings.xml" -exec sed -i 's/WebView Template/1 \u0438\u0437 8 \u043c\u043b\u0440\u0434/g' {} \; || true
-          cat template/app/build.gradle 2>/dev/null | head -n 60
-          cat template/app/build.gradle.kts 2>/dev/null | head -n 60
-      - name: Build debug APK
-        working-directory: template
-        run: |
+          set -e
+          # Create gradle project structure
+          mkdir -p app/src/main/java/dev/qretexa/twa1in8b
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p gradle/wrapper
+
+          # Copy our PWA into assets
+          cp -r index.html css js manifest.json sw.js app/src/main/assets/ || true
+          ls -R app/src/main/assets | head -n 100
+
+          # settings.gradle
+          cat > settings.gradle <<'GRADLE'
+          include ':app'
+          GRADLE
+
+          # app/build.gradle
+          cat > app/build.gradle <<'GRADLE'
+          plugins { id 'com.android.application' }
+          android {
+            namespace 'dev.qretexa.twa1in8b'
+            compileSdk 34
+            defaultConfig {
+              applicationId "dev.qretexa.twa1in8b"
+              minSdk 24
+              targetSdk 34
+              versionCode 1
+              versionName "1.0"
+            }
+            buildTypes { release { minifyEnabled false } debug { debuggable true } }
+            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+            kotlinOptions { jvmTarget = '17' }
+          }
+          dependencies { implementation 'androidx.webkit:webkit:1.9.0'; implementation 'androidx.appcompat:appcompat:1.7.0'; implementation 'com.google.android.material:material:1.12.0' }
+          GRADLE
+
+          # AndroidManifest.xml
+          cat > app/src/main/AndroidManifest.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+            <application android:allowBackup="true" android:label="1 из 8 млрд" android:theme="@android:style/Theme.NoTitleBar.Fullscreen" android:usesCleartextTraffic="true" android:hardwareAccelerated="true">
+              <activity android:name=".MainActivity" android:exported="true" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          XML
+
+          # MainActivity.kt - WebView that loads assets/index.html with fallback to https
+          cat > app/src/main/java/dev/qretexa/twa1in8b/MainActivity.kt <<'KT'
+          package dev.qretexa.twa1in8b
+          import android.annotation.SuppressLint
+          import android.os.Bundle
+          import android.webkit.WebView
+          import android.webkit.WebViewClient
+          import android.webkit.WebSettings
+          import androidx.appcompat.app.AppCompatActivity
+
+          class MainActivity : AppCompatActivity() {
+            private lateinit var wv: WebView
+            @SuppressLint("SetJavaScriptEnabled")
+            override fun onCreate(savedInstanceState: Bundle?) {
+              super.onCreate(savedInstanceState)
+              wv = WebView(this)
+              wv.settings.javaScriptEnabled = true
+              wv.settings.domStorageEnabled = true
+              wv.settings.allowFileAccess = true
+              wv.settings.allowContentAccess = true
+              wv.settings.mediaPlaybackRequiresUserGesture = false
+              wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+              wv.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+              wv.webViewClient = WebViewClient()
+              // edge-to-edge safe area handled by CSS in web content
+              setContentView(wv)
+              // Try local first (offline), fallback to live if needed
+              wv.loadUrl("file:///android_asset/index.html")
+            }
+            override fun onBackPressed() {
+              if (wv.canGoBack()) wv.goBack() else super.onBackPressed()
+            }
+          }
+          KT
+
+          # values
+          cat > app/src/main/res/values/themes.xml <<'XML'
+          <resources><style name="Theme.App" parent="android:style/Theme.NoTitleBar"/></resources>
+          XML
+
+          # gradle wrapper properties (use gradle 8.7)
+          cat > gradle/wrapper/gradle-wrapper.properties <<'PROP'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          PROP
+
+          # gradlew script (minimal)
+          cat > gradlew <<'SH'
+          #!/bin/sh
+          set -e
+          GRADLE_USER_HOME="${GRADLE_USER_HOME:-$HOME/.gradle}"
+          GRADLE_VERSION=8.7
+          GRADLE_ZIP="$GRADLE_USER_HOME/wrapper/dists/gradle-$GRADLE_VERSION-bin.zip"
+          GRADLE_DIR="$GRADLE_USER_HOME/wrapper/dists/gradle-$GRADLE_VERSION-bin"
+          if [ ! -d "$GRADLE_DIR" ]; then
+            mkdir -p "$(dirname "$GRADLE_ZIP")"
+            echo "Downloading Gradle $GRADLE_VERSION..."
+            curl -L -o "$GRADLE_ZIP" "https://services.gradle.org/distributions/gradle-$GRADLE_VERSION-bin.zip"
+            mkdir -p "$GRADLE_DIR"
+            unzip -q "$GRADLE_ZIP" -d "$GRADLE_USER_HOME/wrapper/dists/"
+            mv "$GRADLE_USER_HOME/wrapper/dists/gradle-$GRADLE_VERSION" "$GRADLE_DIR" || true
+          fi
+          exec "$GRADLE_DIR/bin/gradle" "$@"
+          SH
           chmod +x gradlew
+
+          ls -lh
+          cat app/build.gradle
+          cat app/src/main/AndroidManifest.xml
+
+      - name: Build APK
+        run: |
           ./gradlew assembleDebug --stacktrace
           ls -lh app/build/outputs/apk/debug/
-      - uses: actions/upload-artifact@v4
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: 1in8b-mobile-apk
-          path: template/app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/*.apk
+
