@@ -10,8 +10,9 @@
 <meta name="apple-mobile-web-app-title" content="1 из 8 млрд">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
-<meta name="description" content="1 из 8 миллиардов — мобильная адаптация оригинала 1in8b.life. Вьюпорт, safe-area, жесты, PWA, офлайн-оболочка. Оригинальная механика сохранена.">
-<title>1 из 8 миллиардов — мобильная адаптация</title>
+<meta name="description" content="1 из 8 миллиардов — проживи одну случайную жизнь. Симулятор судьбы на основе реальной статистики 172 стран. Полностью адаптирован для телефона.">
+
+<title>1 из 8 миллиардов — мобильная версия</title>
 
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23E85D3F'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white'>1</text></svg>">
@@ -19,155 +20,364 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/adapter.css">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-
-<!-- Ландшафт-заглушка -->
+<!-- Landscape blocker -->
 <div id="landscape-hint" aria-hidden="true">
   <div class="landscape-card">
     <div class="landscape-icon">↻</div>
     <p>Поверни телефон вертикально</p>
-    <span>Адаптация сделана для портрета — так оригинал читается лучше</span>
+    <span>Игра создана для портрета — так история читается лучше</span>
   </div>
 </div>
 
 <div id="app">
+  <!-- Top safe area spacer is handled by CSS env() -->
   <header id="topbar">
-    <button id="btn-about" class="icon-btn" aria-label="Об адаптации">?</button>
+    <button id="btn-menu" class="icon-btn" aria-label="Меню">☰</button>
     <div id="topbar-center">
       <span id="topbar-label">1 из 8 миллиардов</span>
-      <span id="topbar-sub">мобильная адаптация оригинала</span>
+      <span id="topbar-sub">проживи одну жизнь</span>
     </div>
-    <button id="btn-install" class="icon-btn primary" aria-label="Установить" hidden>⬇</button>
+    <button id="btn-archive" class="icon-btn" aria-label="Архив">◈ <span id="archive-count">0</span></button>
   </header>
 
-  <!-- Инфо-плашка: что это адаптация, а не клон -->
-  <div id="adapt-notice">
-    <span class="adapt-badge">Адаптация</span>
-    <p>Оригинальная игра — <a href="https://1in8b.life/ru/" target="_blank" rel="noopener">1in8b.life</a> (отдельный проект, данные ООН/ВБ/ВОЗ). Здесь — только мобильные патчи: вьюпорт, safe-area, тачи, PWA. Механика и статистика не менялись.</p>
-    <button id="btn-notice-close" aria-label="Закрыть">✕</button>
+  <!-- Life progress -->
+  <div id="progress-wrap" aria-hidden="true">
+    <div id="progress-bar"></div>
+    <div id="progress-ticks"></div>
   </div>
 
-  <!-- Основная зона: оригинал в iframe + оболочка -->
-  <main id="shell">
-    <div id="toolbar">
-      <div class="toolbar-left">
-        <span class="toolbar-dot live"></span>
-        <span id="toolbar-status">Загружаем оригинал…</span>
-      </div>
-      <div class="toolbar-actions">
-        <button id="btn-reload" class="chip">↻ Перезагрузить</button>
-        <button id="btn-open-external" class="chip primary">↗ Открыть оригинал</button>
-      </div>
+  <!-- Stats pill -->
+  <div id="stats-bar" aria-label="Показатели жизни">
+    <div class="stat" data-stat="health">
+      <span class="stat-icon">♥</span>
+      <div class="stat-track"><div class="stat-fill" id="stat-health"></div></div>
+      <span class="stat-val" id="val-health">70</span>
     </div>
+    <div class="stat" data-stat="happiness">
+      <span class="stat-icon">☺</span>
+      <div class="stat-track"><div class="stat-fill" id="stat-happiness"></div></div>
+      <span class="stat-val" id="val-happiness">70</span>
+    </div>
+    <div class="stat" data-stat="relations">
+      <span class="stat-icon">◐</span>
+      <div class="stat-track"><div class="stat-fill" id="stat-relations"></div></div>
+      <span class="stat-val" id="val-relations">70</span>
+    </div>
+    <div class="stat" data-stat="money">
+      <span class="stat-icon">◆</span>
+      <div class="stat-track"><div class="stat-fill" id="stat-money"></div></div>
+      <span class="stat-val" id="val-money">70</span>
+    </div>
+  </div>
 
-    <div id="frame-wrap">
-      <!-- Скелетон пока грузится -->
-      <div id="frame-skeleton" aria-hidden="true">
-        <div class="skel-card"></div>
-        <div class="skel-lines"><i></i><i></i><i></i></div>
-        <p>Подгоняем оригинал под твой экран…<br><small>Если не загрузится за 8 сек — покажем кнопку перехода</small></p>
-      </div>
+  <main id="screen-root">
+    <!-- ONBOARDING / HOME -->
+    <section id="screen-home" class="screen active">
+      <div class="home-hero">
+        <div class="hero-badge">● live · 172 страны · реальная статистика ООН</div>
+        <h1 class="hero-title">
+          <span class="t-accent">1</span> из 8 <br>миллиардов
+        </h1>
+        <p class="hero-desc">
+          Ты не выбираешь, где родиться.<br>
+          Страна, семья и достаток выпадают случайно — как в жизни.
+          Проживи одну судьбу год за годом.
+        </p>
 
-      <iframe
-        id="game-frame"
-        src="https://1in8b.life/ru/"
-        title="Оригинальная игра 1 из 8 миллиардов"
-        allow="fullscreen; clipboard-write"
-        loading="eager"
-        referrerpolicy="no-referrer-when-downgrade"
-      ></iframe>
+        <div class="hero-card-preview">
+          <div class="mini-card">
+            <div class="mini-flag">🌍</div>
+            <div class="mini-text">
+              <b>Случайное рождение</b>
+              <span>Шанс родиться в Индии — в 70 раз выше, чем в Канаде</span>
+            </div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-flag">🃏</div>
+            <div class="mini-text">
+              <b>Карточки-решения</b>
+              <span>Свайп влево / вправо — как в жизни: каждый выбор меняет всё</span>
+            </div>
+          </div>
+        </div>
 
-      <!-- Фолбэк если iframe заблокирован / офлайн -->
-      <div id="frame-fallback" hidden>
-        <div class="fallback-card">
-          <div class="fallback-icon">🌍</div>
-          <h2>Оригинал не встроился</h2>
-          <p>Браузер заблокировал встройку (X-Frame / CSP) или нет сети. Это нормально — откроем оригинал напрямую, а оболочка останется для навигации.</p>
-          <a id="fallback-link" href="https://1in8b.life/ru/" target="_blank" rel="noopener" class="btn-primary">Играть на 1in8b.life →</a>
-          <button id="btn-fallback-local" class="btn-secondary">Открыть локальную адаптированную копию (офлайн)</button>
-          <small>Локальная копия — тот же движок и те же 172 страны, но с уже наложенными мобильными патчами. Не «с нуля», а адаптация данных оригинала.</small>
+        <div class="cta-stack">
+          <button id="btn-birth-random" class="btn-primary">
+            <span class="btn-ico">✦</span>
+            Родиться случайно
+            <span class="btn-sub">реальный шанс по рождаемости</span>
+          </button>
+
+          <div class="cta-row">
+            <button id="btn-birth-choose" class="btn-secondary">Выбрать страну</button>
+            <button id="btn-birth-era" class="btn-secondary">Эпоха: 2024 ▾</button>
+          </div>
+
+          <button id="btn-howto" class="btn-ghost">Как это работает?</button>
+        </div>
+
+        <div class="trust-row">
+          <span>Без регистрации</span><i>·</i><span>Офлайн</span><i>·</i><span>Данные только на устройстве</span>
         </div>
       </div>
+
+      <div class="home-footer">
+        <div class="age-note">15+ · В игре встречаются тяжёлые темы без натурализма</div>
+      </div>
+    </section>
+
+    <!-- COUNTRY PICKER -->
+    <section id="screen-picker" class="screen">
+      <div class="picker-head">
+        <button class="btn-back" data-back="home">‹ Назад</button>
+        <h2>Где родиться?</h2>
+        <div class="search-wrap">
+          <input id="country-search" type="search" placeholder="Поиск страны — Россия, Индия..." inputmode="search" autocomplete="off">
+          <span class="search-icon">⌕</span>
+        </div>
+        <div class="picker-tabs">
+          <button class="tab active" data-tab="all">Все 172</button>
+          <button class="tab" data-tab="common">Чаще всего</button>
+          <button class="tab" data-tab="rare">Редкие судьбы</button>
+        </div>
+      </div>
+      <div id="country-list" class="country-list" role="listbox" aria-label="Список стран"></div>
+      <div class="picker-foot">
+        <button id="btn-random-from-list" class="btn-ghost">🎲 Мне повезёт — случайно</button>
+      </div>
+    </section>
+
+    <!-- BIRTH CERTIFICATE -->
+    <section id="screen-birth" class="screen">
+      <div class="birth-wrap">
+        <div class="birth-paper" id="birth-paper">
+          <div class="paper-top">
+            <span class="paper-kicker" id="birth-kicker">СВИДЕТЕЛЬСТВО · 2024</span>
+            <span class="paper-flag" id="birth-flag">🇮🇳</span>
+          </div>
+          <h2 id="birth-name">Аарья, 0 лет</h2>
+          <p id="birth-place" class="paper-place">Индия · деревня · семья с низким достатком</p>
+
+          <div class="paper-grid">
+            <div class="paper-cell">
+              <span>Страна</span>
+              <b id="birth-country">Индия</b>
+              <small id="birth-odds">1 из 5.8 · 17.2% всех рождений</small>
+            </div>
+            <div class="paper-cell">
+              <span>Ожидаемая жизнь</span>
+              <b id="birth-lifeexp">70 лет</b>
+              <small id="birth-region">Южная Азия</small>
+            </div>
+            <div class="paper-cell">
+              <span>Семья</span>
+              <b id="birth-family">5 человек</b>
+              <small id="birth-income">доход ниже среднего</small>
+            </div>
+            <div class="paper-cell">
+              <span>Старт</span>
+              <b id="birth-city">Село</b>
+              <small id="birth-sex">девочка · 48.4%</small>
+            </div>
+          </div>
+
+          <div class="paper-quote" id="birth-quote">«Ты появилась на свет в доме без водопровода, но с радио, которое ловит три станции. Снаружи — рисовое поле и дорога в город.»</div>
+        </div>
+
+        <div class="birth-actions">
+          <button id="btn-start-life" class="btn-primary">Начать жизнь → <span class="btn-sub">проживёшь год за годом</span></button>
+          <button id="btn-reroll" class="btn-secondary">🎲 Переродить случайно</button>
+          <button class="btn-ghost" data-back="home">Изменить страну</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- GAME -->
+    <section id="screen-game" class="screen">
+      <div id="game-meta">
+        <div id="game-age">
+          <span id="game-age-num">0</span>
+          <small id="game-age-label">лет · младенец</small>
+        </div>
+        <div id="game-location">
+          <span id="game-flag">🇮🇳</span>
+          <span id="game-country">Индия</span>
+          <span id="game-city">· деревня</span>
+        </div>
+        <div id="game-name">Аарья</div>
+      </div>
+
+      <!-- Card stage -->
+      <div id="card-stage">
+        <div id="card-stack">
+          <!-- next card peek -->
+          <div id="card-next" class="card card-next" aria-hidden="true"></div>
+          <!-- current card -->
+          <article id="card-current" class="card" role="region" aria-live="polite">
+            <div class="card-ill" id="card-ill">👶</div>
+            <div class="card-age-badge" id="card-age-badge">0 лет</div>
+            <h3 id="card-title">Ты родилась</h3>
+            <p id="card-text">Первый вдох. Мир большой, а ты — крошечная. Семья держит тебя на руках и шепчет имя.</p>
+            <div id="card-choices" class="card-choices">
+              <button class="choice choice-left" data-side="left">
+                <span class="choice-label" id="choice-left-label">Сжать кулачок</span>
+                <span class="choice-hint">← свайп</span>
+              </button>
+              <button class="choice choice-right" data-side="right">
+                <span class="choice-label" id="choice-right-label">Открыть глаза</span>
+                <span class="choice-hint">свайп →</span>
+              </button>
+            </div>
+            <div class="swipe-hint" id="swipe-hint">
+              <span>← проведи карточку →</span>
+              <span class="hint-dots"><i></i><i></i><i></i></span>
+            </div>
+          </article>
+        </div>
+
+        <!-- swipe labels that appear on drag -->
+        <div id="drag-label-left" class="drag-label left">←</div>
+        <div id="drag-label-right" class="drag-label right">→</div>
+      </div>
+
+      <!-- bottom controls -->
+      <div id="game-controls">
+        <div class="controls-row">
+          <button id="btn-choice-left" class="btn-choice left">
+            <span class="btn-choice-arrow">←</span>
+            <span class="btn-choice-text" id="btn-left-text">Сжать кулачок</span>
+          </button>
+          <button id="btn-choice-right" class="btn-choice right">
+            <span class="btn-choice-text" id="btn-right-text">Открыть глаза</span>
+            <span class="btn-choice-arrow">→</span>
+          </button>
+        </div>
+        <div class="controls-sub">
+          <button id="btn-auto" class="chip">Авто ▶︎</button>
+          <button id="btn-skip" class="chip">Тихий год</button>
+          <span id="auto-speed" class="chip ghost">1×</span>
+        </div>
+      </div>
+
+      <!-- history strip (collapsible) -->
+      <button id="btn-history-toggle" class="history-toggle">▤ История <span id="history-count">0</span></button>
+      <div id="history-sheet" class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <h3>Жизнь по годам</h3>
+          <button id="btn-close-history" class="icon-btn">✕</button>
+        </div>
+        <div id="history-list"></div>
+      </div>
+    </section>
+
+    <!-- DEATH / MEMORIAL -->
+    <section id="screen-death" class="screen">
+      <div class="death-wrap">
+        <div class="death-paper">
+          <div class="death-type" id="death-type">ПАМЯТЬ</div>
+          <h2 id="death-name">Аарья · 69 лет</h2>
+          <p id="death-cause" class="death-cause">Сердце остановилось во сне. Рядом — фотография внуков.</p>
+          <div id="death-stats" class="death-stats"></div>
+          <div id="death-timeline" class="death-timeline"></div>
+          <div class="death-quote" id="death-quote">«Она прожила обычную жизнь — и в этом была её необычность.»</div>
+        </div>
+        <div class="death-actions">
+          <button id="btn-share" class="btn-primary">Поделиться карточкой</button>
+          <button id="btn-save-archive" class="btn-secondary">Сохранить в архив</button>
+          <button id="btn-new-life" class="btn-ghost">Новая жизнь ↻</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARCHIVE -->
+    <section id="screen-archive" class="screen">
+      <div class="picker-head">
+        <button class="btn-back" data-back="home">‹ На главную</button>
+        <h2>Архив жизней</h2>
+        <p class="muted">Все истории хранятся только на этом устройстве</p>
+      </div>
+      <div id="archive-list" class="archive-list"></div>
+      <div class="archive-foot">
+        <button id="btn-clear-archive" class="btn-ghost danger">Очистить архив</button>
+        <button id="btn-export-archive" class="btn-secondary">Экспорт .txt</button>
+      </div>
+    </section>
+
+    <!-- HOWTO sheet -->
+    <div id="sheet-howto" class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <h3>Как играть</h3>
+        <button class="icon-btn" data-close="howto">✕</button>
+      </div>
+      <div class="howto-body">
+        <ol>
+          <li><b>Свайпай карточку</b> влево или вправо — это твой выбор. Можно и кнопками внизу.</li>
+          <li><b>4 показателя</b> вверху — здоровье, счастье, отношения, деньги. Они влияют на события и смерть.</li>
+          <li><b>Никаких читов:</b> страна рождения задаёт шансы на всю жизнь. Выбор меняет, но не стирает старт.</li>
+          <li><b>История</b> сохраняется по годам — открой шторку внизу во время игры.</li>
+        </ol>
+        <div class="howto-grid">
+          <div><span>♥</span>Здоровье — болезни, возраст</div>
+          <div><span>☺</span>Счастье — смысл, потери</div>
+          <div><span>◐</span>Отношения — семья, друзья</div>
+          <div><span>◆</span>Деньги — работа, случай</div>
+        </div>
+        <p class="muted small">Данные: ООН WPP 2024, Всемирный банк, ВОЗ. События упрощены для игры. 15+.</p>
+      </div>
     </div>
 
-    <!-- Мобильные подсказки поверх оригинала -->
-    <div id="gesture-hint">
-      <span>← свайп-карточки уже работают в оригинале · кнопки 48px+ · pinch-zoom отключён</span>
+    <!-- Era sheet -->
+    <div id="sheet-era" class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <h3>Выбери эпоху</h3>
+        <button class="icon-btn" data-close="era">✕</button>
+      </div>
+      <div class="era-options">
+        <button class="era-card active" data-era="2024">
+          <b>Сегодня · 2024</b><span>Актуальные данные. Твоя жизнь сейчас.</span>
+        </button>
+        <button class="era-card" data-era="1990">
+          <b>Прошлое · 1990</b><span>Другая медицина, другие шансы. Ностальгия и трудности.</span>
+        </button>
+        <button class="era-card" data-era="2080">
+          <b>Будущее · 2080</b><span>Прогноз ООН: долголетие, климат, мегаполисы.</span>
+        </button>
+      </div>
     </div>
+
   </main>
 
+  <!-- bottom nav for home -->
   <nav id="bottom-nav">
-    <a class="nav-item active" href="#play" data-nav="play">
+    <button class="nav-item active" data-nav="home">
       <span class="nav-ico">⌖</span><span>Играть</span>
-    </a>
-    <a class="nav-item" href="https://1in8b.life/ru/about/" target="_blank" rel="noopener" data-nav="about">
-      <span class="nav-ico">◐</span><span>Об игре</span>
-    </a>
-    <button class="nav-item" id="btn-sheet-adapt" data-nav="adapt">
-      <span class="nav-ico">✦</span><span>Патчи</span>
+    </button>
+    <button class="nav-item" data-nav="archive">
+      <span class="nav-ico">◈</span><span>Архив</span><i id="nav-archive-badge" class="badge hidden">0</i>
+    </button>
+    <button class="nav-item" data-nav="howto">
+      <span class="nav-ico">?</span><span>Помощь</span>
     </button>
   </nav>
 
-  <!-- Шторка: что именно адаптировано -->
-  <div id="sheet-adapt" class="sheet" aria-hidden="true">
-    <div class="sheet-handle"></div>
-    <div class="sheet-head">
-      <h3>Что адаптировано под телефон</h3>
-      <button class="icon-btn" data-close>✕</button>
-    </div>
-    <div class="sheet-body">
-      <p class="muted">Оригинал 1in8b.life делался для десктопа. Мы не переписывали механику — только подложили мобильные фиксы поверх. Патчи — в <code>css/adapter.css</code> + <code>js/adapter.js</code>.</p>
-
-      <h4>1. Вьюпорт и safe-area</h4>
-      <ul>
-        <li><code>viewport-fit=cover</code> + <code>env(safe-area-inset-*)</code> — топбар/низ не режутся вырезом и жестовой полосой</li>
-        <li><code>100dvh/100svh</code> вместо <code>100vh</code> — нет прыжков при клавиатуре</li>
-        <li><code>interactive-widget=resizes-content</code> — клавиатура не ломает поле ввода</li>
-      </ul>
-
-      <h4>2. Тачи и управление</h4>
-      <ul>
-        <li><code>touch-action: manipulation</code>, <code>-webkit-tap-highlight: transparent</code>, <code>overscroll-behavior: contain</code></li>
-        <li>Все кнопки ≥48px, межкнопка ≥8px, скругления под палец</li>
-        <li>Haptics <code>navigator.vibrate(10)</code> на действия (прозрачный фолбэк на iOS)</li>
-        <li>Горизонтальный свайп не конфликтует с вертикальным скроллом</li>
-      </ul>
-
-      <h4>3. Производительность и PWA</h4>
-      <ul>
-        <li><code>manifest.json</code> (standalone, portrait, shortcuts), <code>theme-color</code> под тему</li>
-        <li><code>sw.js</code> кэширует оболочку — оффлайн-скрин с кнопкой перехода остаётся</li>
-        <li>Шрифты с <code>preconnect</code>, иконки inline — 0 лишних запросов</li>
-      </ul>
-
-      <h4>4. Доступность</h4>
-      <ul>
-        <li>Оригинальный контент не трогаем, только обвязка. Ландшафт — плашка «поверни»</li>
-        <li>Внешние ссылки с <code>rel=noopener</code>, фокус-стили, 16px в input (без зума на iOS)</li>
-      </ul>
-
-      <p class="small muted">Хочешь проверить? Открой DevTools → Toggle device toolbar → выбери iPhone 13 / Pixel 7 и сравни с оригиналом без обёртки.</p>
-      <a href="https://github.com/ToshakGulina/1in8b-mobile" target="_blank" rel="noopener" class="btn-secondary" style="width:100%">Исходники адаптации на GitHub</a>
-    </div>
-  </div>
-
-  <div id="overlay" aria-hidden="true"></div>
+  <!-- toast -->
   <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- overlay -->
+  <div id="overlay"></div>
 </div>
 
-<!-- Локальная адаптированная копия (подгружается только по требованию) -->
-<div id="local-copy" hidden>
-  <div class="local-head">
-    <button id="btn-local-back" class="icon-btn">←</button>
-    <span>Локальная копия · те же 172 страны</span>
-    <span class="badge">офлайн</span>
-  </div>
-  <div id="local-stage"></div>
-</div>
+<!-- share canvas hidden -->
+<canvas id="share-canvas" width="1080" height="1350" style="display:none"></canvas>
 
-<script type="module" src="js/adapter.js"></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
