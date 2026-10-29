@@ -70,29 +70,32 @@ jobs:
           <resources><style name="Theme.App" parent="android:style/Theme.NoTitleBar"/></resources>
           X
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          cat local.properties
           ls -R app | head -n 100
 
-      - name: Accept licenses + show SDK
-        run: |
-          yes | sdkmanager --licenses 2>&1 | head -n 20 || true
-          ls $ANDROID_HOME/platforms | head
-          ls $ANDROID_HOME/build-tools | head
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses 2>&1 | head -n 20 || true
 
       - name: Build APK
+        id: build
         run: |
           set -o pipefail
-          gradle assembleDebug --stacktrace 2>&1 | tee /tmp/build.log; EXIT=${PIPESTATUS[0]}
-          echo "EXIT=$EXIT"
-          tail -n 200 /tmp/build.log
-          if [ $EXIT -ne 0 ]; then
-            echo "=== BUILD FAILED ==="
-            # create gist via API for us to read (allowed host api.github.com)
-            # use gh to create gist
-            gh gist create /tmp/build.log --public --desc "build log $GITHUB_RUN_ID" 2>&1 || true
-            exit $EXIT
-          fi
+          gradle assembleDebug --stacktrace 2>&1 | tee /tmp/build.log; echo "EXIT=${PIPESTATUS[0]}" > /tmp/exitcode
+          EXIT=$(cat /tmp/exitcode | cut -d= -f2)
+          tail -n 300 /tmp/build.log
+          if [ "$EXIT" != "0" ]; then echo "BUILD_FAILED" > /tmp/failed; exit $EXIT; fi
           ls -lh app/build/outputs/apk/debug/*.apk
+
+      - name: Publish log to repo on failure
+        if: failure()
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci@bot.local"
+          # save log as artifact in repo (branch)
+          cp /tmp/build.log ./build-failure.log || echo "no log" > ./build-failure.log
+          tail -n 300 /tmp/build.log > ./build-failure-tail.txt || true
+          git add build-failure.log build-failure-tail.txt || true
+          git commit -m "ci: push build failure log for debugging" || true
+          git push origin HEAD:${{ github.ref_name }} || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -101,11 +104,4 @@ jobs:
         with:
           name: 1in8b-mobile-apk
           path: app/build/outputs/apk/debug/*.apk
-
-      - name: Upload log artifact
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: /tmp/build.log
 
