@@ -15,71 +15,35 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout app
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Clone WebView template (offline assets)
+      - name: Clone WebView template
         run: |
           git clone --depth 1 https://github.com/ykann88/Html-Css-Js-Web-View-Apk-Template.git template
-          ls -la template
-
-      - name: Configure app (manifest + assets)
+          ls template/app/src/main/
+      - name: Copy app assets
         run: |
-          # App identity
-          APP_ID="dev.qretexa.twa1in8b"
-          APP_NAME="1 из 8 млрд"
-          # Update template config
-          # template uses app/src/main/assets/index.html
           mkdir -p template/app/src/main/assets
-          # Copy our PWA (offline shell + fallback data) into template assets
-          cp -r index.html css js manifest.json sw.js template/app/src/main/assets/ 2>/dev/null || true
-          # Override MainActivity url to assets/index.html if needed (template default already does)
-          ls -lh template/app/src/main/assets/
-          # Patch app build.gradle with our IDs
-          # The template's app/build.gradle.kts or build.gradle contains applicationId
-          grep -r "applicationId" template --include="*.gradle*" | head -n 20
-          # Try to set via properties if exists
-          if [ -f template/app.properties ]; then
-            echo "app.package=$APP_ID" >> template/app.properties
-            echo "app.name=$APP_NAME" >> template/app.properties
-            cat template/app.properties
-          fi
-          # Direct patch build files
-          find template -name "*.gradle*" -exec sed -i "s/com.example.webview/$APP_ID/g; s/WebView Template/$APP_NAME/g; s/HtmlCssJs.*Template/$APP_NAME/g" {} \; || true
-          find template -name "*.gradle*" -exec sed -i "s/applicationId .*/applicationId \"$APP_ID\"/" {} \; || true
-
-      - name: Build APK (debug)
+          cp -r index.html css js manifest.json sw.js template/app/src/main/assets/ || true
+          # also copy nested
+          ls -R template/app/src/main/assets | head -n 50
+          # Patch package id
+          grep -r "applicationId" template/app --include="*.gradle*" || true
+          find template/app -name "*.gradle*" -exec sed -i 's/com.example.webview/dev.qretexa.twa1in8b/g' {} \; || true
+          find template -name "strings.xml" -exec sed -i 's/WebView Template/1 \u0438\u0437 8 \u043c\u043b\u0440\u0434/g' {} \; || true
+          cat template/app/build.gradle 2>/dev/null | head -n 60
+          cat template/app/build.gradle.kts 2>/dev/null | head -n 60
+      - name: Build debug APK
         working-directory: template
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
-          ls -lh app/build/outputs/apk/debug/*.apk
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+          ls -lh app/build/outputs/apk/debug/
+      - uses: actions/upload-artifact@v4
         with:
           name: 1in8b-mobile-apk
           path: template/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-
-      - name: Create GitHub Release (on manual dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: apk-${{ github.run_number }}
-          name: "APK build ${{ github.run_number }}"
-          files: template/app/build/outputs/apk/debug/*.apk
-          generate_release_notes: true
-
