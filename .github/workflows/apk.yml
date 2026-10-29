@@ -1,9 +1,7 @@
 name: Build APK
 
 on:
-  push:
-    branches: [ "arena/63846101-1in8b-mobile", "main" ]
-  workflow_dispatch:
+  workflow_dispatch: # только вручную, чтобы не спамить
 
 jobs:
   build:
@@ -17,7 +15,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
-
       - name: Generate project
         run: |
           set -e
@@ -30,18 +27,8 @@ jobs:
           G
           cat > app/build.gradle <<'G'
           plugins { id 'com.android.application' version '8.5.2' }
-          android {
-            namespace 'dev.qretexa.twa1in8b'
-            compileSdk 34
-            defaultConfig { applicationId "dev.qretexa.twa1in8b"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }
-            buildTypes { release { minifyEnabled false }; debug { debuggable true } }
-            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-          }
-          dependencies {
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.11.0'
-            implementation 'androidx.webkit:webkit:1.9.0'
-          }
+          android { namespace 'dev.qretexa.twa1in8b'; compileSdk 34; defaultConfig { applicationId "dev.qretexa.twa1in8b"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }; buildTypes { release { minifyEnabled false }; debug { debuggable true } }; compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }
+          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1'; implementation 'com.google.android.material:material:1.11.0'; implementation 'androidx.webkit:webkit:1.9.0' }
           G
           cat > app/src/main/AndroidManifest.xml <<'X'
           <?xml version="1.0" encoding="utf-8"?>
@@ -60,37 +47,12 @@ jobs:
           <resources><style name="Theme.App" parent="android:style/Theme.NoTitleBar"/></resources>
           X
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-
-      - name: Ensure Android SDK
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls $ANDROID_HOME/platforms || true
-          sdkmanager --list_installed 2>&1 | head -n 100
-          # install needed
-          yes | sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" 2>&1 | tail -n 20 || true
-
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses 2>&1 | head -n 5 || true
       - name: Build APK
-        run: |
-          set -o pipefail
-          gradle assembleDebug --stacktrace 2>&1 | tee /tmp/build.log; EXIT=${PIPESTATUS[0]}
-          echo "EXIT=$EXIT"
-          # always show head + grep
-          echo "=== HEAD ==="; head -n 200 /tmp/build.log
-          echo "=== GREP FAILED/ERROR ==="; grep -i -E "failed|error|exception|could not" /tmp/build.log | head -n 100 || true
-          echo "=== TAIL ==="; tail -n 100 /tmp/build.log
-          # post to commit comment (short)
-          HEAD_LOG=$(head -n 80 /tmp/build.log | tr -cd '\11\12\15\40-\176' | head -c 5000)
-          TAIL_LOG=$(tail -n 80 /tmp/build.log | tr -cd '\11\12\15\40-\176' | head -c 5000)
-          BODY="Build exit $EXIT head:\n\`\`\`\n$HEAD_LOG\n\`\`\`\n tail:\n\`\`\`\n$TAIL_LOG\n\`\`\`"
-          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -f body="$BODY" || true
-          if [ "$EXIT" != "0" ]; then exit $EXIT; fi
-          ls -lh app/build/outputs/apk/debug/*.apk
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+        run: gradle assembleDebug --stacktrace && ls -lh app/build/outputs/apk/debug/*.apk
       - uses: actions/upload-artifact@v4
         if: success()
         with:
           name: 1in8b-mobile-apk
           path: app/build/outputs/apk/debug/*.apk
-
