@@ -3,6 +3,8 @@ name: Build APK
 on:
   push:
     branches: [ "arena/63846101-1in8b-mobile" ]
+    paths-ignore:
+      - 'dist/**'
   workflow_dispatch:
 
 jobs:
@@ -64,6 +66,8 @@ jobs:
           cat > app/src/main/res/values/themes.xml <<'X'
           <resources><style name="Theme.App" parent="android:style/Theme.NoTitleBar"/></resources>
           X
+          # Pillow for icon generation
+          pip install --quiet Pillow 2>&1 | tail -n 3
           # Generate icons (red square with "1") via Python + Pillow
           python3 <<'PY'
           from PIL import Image, ImageDraw, ImageFont
